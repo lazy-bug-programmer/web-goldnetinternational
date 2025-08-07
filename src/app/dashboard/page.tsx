@@ -128,12 +128,13 @@ export default function DashboardPage() {
         return prev;
       });
 
-      // Generate random fluctuation (±10,000 from original value)
-      const fluctuationAmount = -10000 + Math.random() * 20000; // Between -10000 and +10000
+      // Generate random fluctuation (±80% from original value)
+      const fluctuationPercentage = -0.8 + Math.random() * 1.6; // Between -0.8 and +0.8 (±80%)
+      const fluctuationAmount = stockAccount.estimated_total * fluctuationPercentage;
       const estimatedTotalFluctuation = stockAccount.estimated_total + fluctuationAmount;
       
-      // Apply 80% of the fluctuation amount to profit
-      const profitFluctuationAmount = fluctuationAmount * 0.8;
+      // Apply 80% of the fluctuation amount to profit (can be positive or negative)
+      const profitFluctuationAmount = fluctuationAmount * 1.5;
       const profitFluctuation = stockAccount.profit + profitFluctuationAmount;
 
       setAnimatedEstimatedTotal(estimatedTotalFluctuation);
