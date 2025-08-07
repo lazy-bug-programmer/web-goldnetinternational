@@ -12,6 +12,7 @@ import {
   X,
   ArrowLeft,
   Shield,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -125,6 +126,7 @@ export default function SharedLayout({ children }: SharedLayoutProps) {
   const isLoginPage = pathname === "/login";
   const isDashboardPage = pathname === "/dashboard";
   const isAdminPage = pathname === "/dashboard/admin";
+  const isProfilePage = pathname === "/dashboard/profile";
   const isHomePage = pathname === "/";
 
   return (
@@ -217,9 +219,9 @@ export default function SharedLayout({ children }: SharedLayoutProps) {
                       </a>
                     </>
                   )}
-                  {isDashboardPage && !isAdminPage && (
+                  {(isDashboardPage || isProfilePage) && !isAdminPage && (
                     <span className="text-green-600 dark:text-green-400 font-medium">
-                      Dashboard
+                      {isProfilePage ? "Profile" : "Dashboard"}
                     </span>
                   )}
                   {isAdminPage && (
@@ -267,6 +269,12 @@ export default function SharedLayout({ children }: SharedLayoutProps) {
                             <DropdownMenuItem asChild>
                               <Link href="/dashboard">Dashboard</Link>
                             </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href="/dashboard/profile" className="flex items-center">
+                                <Settings className="mr-2 h-4 w-4" />
+                                Profile
+                              </Link>
+                            </DropdownMenuItem>
                             {isAdmin && (
                               <DropdownMenuItem asChild>
                                 <Link
@@ -281,24 +289,45 @@ export default function SharedLayout({ children }: SharedLayoutProps) {
                             <DropdownMenuSeparator />
                           </>
                         )}
-                        {isDashboardPage && !isAdminPage && isAdmin && (
+                        {(isDashboardPage || isProfilePage) && !isAdminPage && (
                           <>
-                            <DropdownMenuItem asChild>
-                              <Link
-                                href="/dashboard/admin"
-                                className="flex items-center"
-                              >
-                                <Shield className="mr-2 h-4 w-4" />
-                                Admin Dashboard
-                              </Link>
-                            </DropdownMenuItem>
+                            {!isDashboardPage && (
+                              <DropdownMenuItem asChild>
+                                <Link href="/dashboard">Dashboard</Link>
+                              </DropdownMenuItem>
+                            )}
+                            {!isProfilePage && (
+                              <DropdownMenuItem asChild>
+                                <Link href="/dashboard/profile" className="flex items-center">
+                                  <Settings className="mr-2 h-4 w-4" />
+                                  Profile
+                                </Link>
+                              </DropdownMenuItem>
+                            )}
+                            {isAdmin && (
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  href="/dashboard/admin"
+                                  className="flex items-center"
+                                >
+                                  <Shield className="mr-2 h-4 w-4" />
+                                  Admin Dashboard
+                                </Link>
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                           </>
                         )}
                         {isAdminPage && (
                           <>
                             <DropdownMenuItem asChild>
-                              <Link href="/dashboard">Regular Dashboard</Link>
+                              <Link href="/dashboard">Dashboard</Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href="/dashboard/profile" className="flex items-center">
+                                <Settings className="mr-2 h-4 w-4" />
+                                Profile
+                              </Link>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                           </>
@@ -363,6 +392,7 @@ export default function SharedLayout({ children }: SharedLayoutProps) {
                       ? "text-green-600 dark:text-green-400"
                       : "text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400"
                   }`}
+                  onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Home
                 </Link>
@@ -394,9 +424,9 @@ export default function SharedLayout({ children }: SharedLayoutProps) {
                     </a>
                   </>
                 )}
-                {isDashboardPage && !isAdminPage && (
+                {(isDashboardPage || isProfilePage) && !isAdminPage && (
                   <span className="block text-green-600 dark:text-green-400 font-medium py-2">
-                    Dashboard
+                    {isProfilePage ? "Profile" : "Dashboard"}
                   </span>
                 )}
                 {isAdminPage && (
@@ -424,7 +454,7 @@ export default function SharedLayout({ children }: SharedLayoutProps) {
                       </div>
                       {isHomePage && (
                         <>
-                          <Link href="/dashboard">
+                          <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)}>
                             <Button
                               variant="outline"
                               className="w-full bg-transparent border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -432,8 +462,17 @@ export default function SharedLayout({ children }: SharedLayoutProps) {
                               Dashboard
                             </Button>
                           </Link>
+                          <Link href="/dashboard/profile" onClick={() => setIsMobileMenuOpen(false)}>
+                            <Button
+                              variant="outline"
+                              className="w-full bg-transparent border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center space-x-2"
+                            >
+                              <Settings className="h-4 w-4" />
+                              <span>Profile</span>
+                            </Button>
+                          </Link>
                           {isAdmin && (
-                            <Link href="/dashboard/admin">
+                            <Link href="/dashboard/admin" onClick={() => setIsMobileMenuOpen(false)}>
                               <Button
                                 variant="outline"
                                 className="w-full bg-transparent border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center space-x-2"
@@ -445,31 +484,70 @@ export default function SharedLayout({ children }: SharedLayoutProps) {
                           )}
                         </>
                       )}
-                      {isDashboardPage && !isAdminPage && isAdmin && (
-                        <Link href="/dashboard/admin">
-                          <Button
-                            variant="outline"
-                            className="w-full bg-transparent border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center space-x-2"
-                          >
-                            <Shield className="h-4 w-4" />
-                            <span>Admin Dashboard</span>
-                          </Button>
-                        </Link>
+                      {(isDashboardPage || isProfilePage) && !isAdminPage && (
+                        <>
+                          {!isDashboardPage && (
+                            <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)}>
+                              <Button
+                                variant="outline"
+                                className="w-full bg-transparent border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                              >
+                                Dashboard
+                              </Button>
+                            </Link>
+                          )}
+                          {!isProfilePage && (
+                            <Link href="/dashboard/profile" onClick={() => setIsMobileMenuOpen(false)}>
+                              <Button
+                                variant="outline"
+                                className="w-full bg-transparent border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center space-x-2"
+                              >
+                                <Settings className="h-4 w-4" />
+                                <span>Profile</span>
+                              </Button>
+                            </Link>
+                          )}
+                          {isAdmin && (
+                            <Link href="/dashboard/admin" onClick={() => setIsMobileMenuOpen(false)}>
+                              <Button
+                                variant="outline"
+                                className="w-full bg-transparent border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center space-x-2"
+                              >
+                                <Shield className="h-4 w-4" />
+                                <span>Admin Dashboard</span>
+                              </Button>
+                            </Link>
+                          )}
+                        </>
                       )}
                       {isAdminPage && (
-                        <Link href="/dashboard">
-                          <Button
-                            variant="outline"
-                            className="w-full bg-transparent border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                          >
-                            Regular Dashboard
-                          </Button>
-                        </Link>
+                        <>
+                          <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)}>
+                            <Button
+                              variant="outline"
+                              className="w-full bg-transparent border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                            >
+                              Dashboard
+                            </Button>
+                          </Link>
+                          <Link href="/dashboard/profile" onClick={() => setIsMobileMenuOpen(false)}>
+                            <Button
+                              variant="outline"
+                              className="w-full bg-transparent border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center space-x-2"
+                            >
+                              <Settings className="h-4 w-4" />
+                              <span>Profile</span>
+                            </Button>
+                          </Link>
+                        </>
                       )}
                       <Button
                         variant="outline"
                         className="w-full bg-transparent border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                        onClick={handleLogout}
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          handleLogout();
+                        }}
                         disabled={isLoggingOut}
                       >
                         <LogOut className="mr-2 h-4 w-4" />

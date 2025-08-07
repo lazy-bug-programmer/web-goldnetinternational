@@ -2,9 +2,10 @@
 "use client";
 
 import React, { useState, useEffect, createContext, useContext } from "react";
-import { Plus, Edit, Trash2, Search, Filter, Moon, Sun } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Filter, Moon, Sun, User } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { CDS } from "@/lib/domains/cds.domain";
+import { UserProfile } from "@/lib/domains/user-profile.domain";
 import {
   StockAccount,
   StockAccountType,
@@ -21,6 +22,11 @@ import {
   listCDS,
   filterCDS,
 } from "@/lib/actions/cds.action";
+import {
+  getUserProfileByUserId,
+  updateUserProfile,
+  createUserProfile,
+} from "@/lib/actions/user-profile.action";
 import {
   createStockAccount,
   updateStockAccount,
@@ -132,6 +138,25 @@ function AdminPageContent() {
   }>({ email: "", password: "" });
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [showUserForm, setShowUserForm] = useState(false);
+
+  // User Profile Management State
+  const [showUserProfileForm, setShowUserProfileForm] = useState(false);
+  const [selectedUserProfile, setSelectedUserProfile] = useState<UserProfile | null>(null);
+  const [userProfileForm, setUserProfileForm] = useState<{
+    name: string;
+    ic: string;
+    bank_account: string;
+    bank_name: string;
+    email: string;
+  }>({
+    name: '',
+    ic: '',
+    bank_account: '',
+    bank_name: '',
+    email: '',
+  });
+  const [editingUserProfile, setEditingUserProfile] = useState<string | null>(null);
+  const [loadingUserProfile, setLoadingUserProfile] = useState(false);
 
   // CDS State
   const [cdsList, setCdsList] = useState<CDS[]>([]);
@@ -720,6 +745,103 @@ function AdminPageContent() {
     setLoading(false);
   };
 
+  // Load user profile for editing
+  const loadUserProfile = async (userId: string) => {
+    setLoadingUserProfile(true);
+    try {
+      const { userProfile, error: fetchError } = await getUserProfileByUserId(userId);
+      
+      if (fetchError && fetchError !== "UserProfile not found") {
+        setError(fetchError);
+      } else if (userProfile) {
+        setSelectedUserProfile(userProfile);
+        setUserProfileForm({
+          name: userProfile.name,
+          ic: userProfile.ic,
+          bank_account: userProfile.bank_account,
+          bank_name: userProfile.bank_name,
+          email: userProfile.email,
+        });
+        setEditingUserProfile(userProfile.id!);
+      } else {
+        // No profile exists, prepare for creation
+        const user = usersList.find(u => u.uid === userId);
+        setSelectedUserProfile(null);
+        setUserProfileForm({
+          name: '',
+          ic: '',
+          bank_account: '',
+          bank_name: '',
+          email: user?.email || '',
+        });
+        setEditingUserProfile(null);
+      }
+    } catch (err) {
+      setError('Failed to load user profile');
+      console.error('Error loading user profile:', err);
+    } finally {
+      setLoadingUserProfile(false);
+    }
+  };
+
+  // Handle viewing/editing user profile
+  const handleViewUserProfile = async (userId: string) => {
+    setShowUserProfileForm(true);
+    await loadUserProfile(userId);
+  };
+
+  // Handle saving user profile
+  const handleSaveUserProfile = async () => {
+    if (!userProfileForm.name || !userProfileForm.email) {
+      setError("Name and email are required");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const profileData: UserProfile = {
+        user_id: editingUserProfile ? selectedUserProfile!.user_id : usersList.find(u => userProfileForm.email === u.email)?.uid || '',
+        name: userProfileForm.name,
+        ic: userProfileForm.ic,
+        bank_account: userProfileForm.bank_account,
+        bank_name: userProfileForm.bank_name,
+        email: userProfileForm.email,
+      };
+
+      let result;
+      
+      if (editingUserProfile && selectedUserProfile?.id) {
+        // Update existing profile
+        result = await updateUserProfile(selectedUserProfile.id, profileData);
+      } else {
+        // Create new profile
+        result = await createUserProfile(profileData);
+      }
+
+      if (result.success) {
+        setShowUserProfileForm(false);
+        setSelectedUserProfile(null);
+        setUserProfileForm({
+          name: '',
+          ic: '',
+          bank_account: '',
+          bank_name: '',
+          email: '',
+        });
+        setEditingUserProfile(null);
+        // Show success message
+        setError(null);
+      } else {
+        setError(result.error || 'Failed to save user profile');
+      }
+    } catch (err) {
+      setError('Failed to save user profile');
+      console.error('Error saving user profile:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderUsersTable = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -835,6 +957,17 @@ function AdminPageContent() {
                     : "Unknown"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                  <button
+                    onClick={() => handleViewUserProfile(firebaseUser.uid)}
+                    className={`transition-colors duration-150 ${
+                      isDark
+                        ? "text-purple-400 hover:text-purple-300"
+                        : "text-purple-600 hover:text-purple-900"
+                    }`}
+                    title="Manage User Profile"
+                  >
+                    <User size={16} />
+                  </button>
                   <button
                     onClick={() => {
                       setUserForm({
@@ -1471,6 +1604,229 @@ function AdminPageContent() {
         </div>
       )}
 
+      {/* User Profile Form Modal */}
+      {showUserProfileForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div
+            className={`p-6 rounded-lg w-[500px] max-h-[90vh] overflow-y-auto ${
+              isDark ? "bg-gray-800 text-white" : "bg-white text-gray-900"
+            }`}
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-semibold">
+                {editingUserProfile ? "Edit User Profile" : "Create User Profile"}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowUserProfileForm(false);
+                  setSelectedUserProfile(null);
+                  setUserProfileForm({
+                    name: '',
+                    ic: '',
+                    bank_account: '',
+                    bank_name: '',
+                    email: '',
+                  });
+                  setEditingUserProfile(null);
+                }}
+                className={`text-gray-500 hover:text-gray-700 ${
+                  isDark ? "hover:text-gray-300" : ""
+                }`}
+              >
+                ✕
+              </button>
+            </div>
+
+            {loadingUserProfile ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-sm text-muted-foreground">Loading profile...</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Profile Information */}
+                {selectedUserProfile && (
+                  <div className={`p-4 rounded-lg mb-4 ${
+                    isDark ? "bg-gray-700" : "bg-gray-100"
+                  }`}>
+                    <h4 className="text-sm font-medium mb-2">Profile Info</h4>
+                    <div className="text-xs space-y-1">
+                      <p><strong>User ID:</strong> {selectedUserProfile.user_id}</p>
+                      {selectedUserProfile.created_at && (
+                        <p><strong>Created:</strong> {new Date(selectedUserProfile.created_at).toLocaleString()}</p>
+                      )}
+                      {selectedUserProfile.updated_at && (
+                        <p><strong>Updated:</strong> {new Date(selectedUserProfile.updated_at).toLocaleString()}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label
+                      className={`block text-sm font-medium ${
+                        isDark ? "text-gray-300" : "text-gray-700"
+                      }`}
+                    >
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={userProfileForm.name}
+                      onChange={(e) =>
+                        setUserProfileForm({ ...userProfileForm, name: e.target.value })
+                      }
+                      placeholder="Enter full name"
+                      className={`w-full p-2 border rounded transition-colors duration-200 ${
+                        isDark
+                          ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                          : "bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500"
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      className={`block text-sm font-medium ${
+                        isDark ? "text-gray-300" : "text-gray-700"
+                      }`}
+                    >
+                      Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      value={userProfileForm.email}
+                      onChange={(e) =>
+                        setUserProfileForm({ ...userProfileForm, email: e.target.value })
+                      }
+                      placeholder="Enter email address"
+                      className={`w-full p-2 border rounded transition-colors duration-200 ${
+                        isDark
+                          ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                          : "bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500"
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      className={`block text-sm font-medium ${
+                        isDark ? "text-gray-300" : "text-gray-700"
+                      }`}
+                    >
+                      IC Number
+                    </label>
+                    <input
+                      type="text"
+                      value={userProfileForm.ic}
+                      onChange={(e) =>
+                        setUserProfileForm({ ...userProfileForm, ic: e.target.value })
+                      }
+                      placeholder="Enter IC number"
+                      className={`w-full p-2 border rounded transition-colors duration-200 ${
+                        isDark
+                          ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                          : "bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500"
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      className={`block text-sm font-medium ${
+                        isDark ? "text-gray-300" : "text-gray-700"
+                      }`}
+                    >
+                      Bank Name
+                    </label>
+                    <input
+                      type="text"
+                      value={userProfileForm.bank_name}
+                      onChange={(e) =>
+                        setUserProfileForm({ ...userProfileForm, bank_name: e.target.value })
+                      }
+                      placeholder="Enter bank name"
+                      className={`w-full p-2 border rounded transition-colors duration-200 ${
+                        isDark
+                          ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                          : "bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500"
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    className={`block text-sm font-medium ${
+                      isDark ? "text-gray-300" : "text-gray-700"
+                    }`}
+                  >
+                    Bank Account Number
+                  </label>
+                  <input
+                    type="text"
+                    value={userProfileForm.bank_account}
+                    onChange={(e) =>
+                      setUserProfileForm({ ...userProfileForm, bank_account: e.target.value })
+                    }
+                    placeholder="Enter bank account number"
+                    className={`w-full p-2 border rounded transition-colors duration-200 ${
+                      isDark
+                        ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                        : "bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500"
+                    }`}
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={handleSaveUserProfile}
+                    disabled={loading || loadingUserProfile}
+                    className={`flex-1 px-4 py-2 rounded transition-colors duration-200 disabled:opacity-50 ${
+                      isDark
+                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                        : "bg-blue-500 text-white hover:bg-blue-600"
+                    }`}
+                  >
+                    {loading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline-block"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>Save Profile</>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowUserProfileForm(false);
+                      setSelectedUserProfile(null);
+                      setUserProfileForm({
+                        name: '',
+                        ic: '',
+                        bank_account: '',
+                        bank_name: '',
+                        email: '',
+                      });
+                      setEditingUserProfile(null);
+                    }}
+                    disabled={loading || loadingUserProfile}
+                    className={`px-4 py-2 rounded transition-colors duration-200 ${
+                      isDark
+                        ? "bg-gray-600 text-white hover:bg-gray-700"
+                        : "bg-gray-500 text-white hover:bg-gray-600"
+                    }`}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* CDS Form Modal */}
       {showCdsForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1819,6 +2175,7 @@ function AdminPageContent() {
 
               <div>
                 <label
+                 
                   className={`block text-sm font-medium mb-1 ${
                     isDark ? "text-gray-300" : "text-gray-700"
                   }`}
@@ -2266,307 +2623,6 @@ function AdminPageContent() {
                   setShowAccountTransactionForm(false);
                   setAccountTransactionForm({});
                   setEditingAccountTransaction(null);
-                }}
-                className={`px-4 py-2 rounded transition-colors duration-200 ${
-                  isDark
-                    ? "bg-gray-600 text-white hover:bg-gray-700"
-                    : "bg-gray-500 text-white hover:bg-gray-600"
-                }`}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Stock Transaction Form Modal */}
-      {showStockTransactionForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div
-            className={`p-6 rounded-lg w-96 max-h-[90vh] overflow-y-auto ${
-              isDark ? "bg-gray-800 text-white" : "bg-white text-gray-900"
-            }`}
-          >
-            <h3 className="text-lg font-semibold mb-4">
-              {editingStockTransaction
-                ? "Edit Stock Transaction"
-                : "Add Stock Transaction"}
-            </h3>
-            <div className="space-y-4">
-              {/* Stock Account Selection Dropdown */}
-              <div>
-                <label
-                  className={`block text-sm font-medium mb-1 ${
-                    isDark ? "text-gray-300" : "text-gray-700"
-                  }`}
-                >
-                  Select Stock Account *
-                </label>
-                <select
-                  value={stockTransactionForm.stock_account_id || ""}
-                  onChange={(e) =>
-                    setStockTransactionForm({
-                      ...stockTransactionForm,
-                      stock_account_id: e.target.value,
-                    })
-                  }
-                  disabled={loadingStockAccounts}
-                  className={`w-full p-2 border rounded transition-colors duration-200 ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white focus:border-blue-500"
-                      : "bg-white border-gray-300 text-gray-900 focus:border-blue-500"
-                  } ${
-                    loadingStockAccounts ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <option value="">
-                    {loadingStockAccounts
-                      ? "Loading Stock Accounts..."
-                      : "Select a Stock Account"}
-                  </option>
-                  {availableStockAccounts.map((account) => {
-                    // Find user email for better identification
-                    const userEmail =
-                      availableUsers.find(
-                        (user) => user.uid === account.user_id
-                      )?.email || "Unknown User";
-
-                    // Find CDS name for additional context
-                    const cdsName =
-                      cdsList.find((cds) => cds.id === account.cds_id)?.name ||
-                      "Unknown CDS";
-
-                    return (
-                      <option key={account.id} value={account.id}>
-                        {account.client_code} - {StockAccountType[account.type]}{" "}
-                        | {userEmail} | {cdsName}
-                      </option>
-                    );
-                  })}
-                </select>
-                {availableStockAccounts.length === 0 &&
-                  !loadingStockAccounts && (
-                    <p
-                      className={`text-sm mt-1 ${
-                        isDark ? "text-red-400" : "text-red-600"
-                      }`}
-                    >
-                      No active stock accounts available. Please create a stock
-                      account first.
-                    </p>
-                  )}
-              </div>
-
-              {/* Show selected account details */}
-              {stockTransactionForm.stock_account_id && (
-                <div
-                  className={`p-3 rounded-lg ${
-                    isDark ? "bg-gray-700" : "bg-gray-100"
-                  }`}
-                >
-                  <h4
-                    className={`text-sm font-medium mb-2 ${
-                      isDark ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Selected Account Details:
-                  </h4>
-                  {(() => {
-                    const selectedAccount = availableStockAccounts.find(
-                      (account) =>
-                        account.id === stockTransactionForm.stock_account_id
-                    );
-                    const userEmail = selectedAccount
-                      ? availableUsers.find(
-                          (user) => user.uid === selectedAccount.user_id
-                        )?.email || "Unknown User"
-                      : "Unknown User";
-                    const cdsName = selectedAccount
-                      ? cdsList.find((cds) => cds.id === selectedAccount.cds_id)
-                          ?.name || "Unknown CDS"
-                      : "Unknown CDS";
-
-                    return selectedAccount ? (
-                      <div
-                        className={`text-xs space-y-1 ${
-                          isDark ? "text-gray-400" : "text-gray-600"
-                        }`}
-                      >
-                        <p>
-                          <strong>Client Code:</strong>{" "}
-                          {selectedAccount.client_code}
-                        </p>
-                        <p>
-                          <strong>Type:</strong>{" "}
-                          {StockAccountType[selectedAccount.type]}
-                        </p>
-                        <p>
-                          <strong>User:</strong> {userEmail}
-                        </p>
-                        <p>
-                          <strong>CDS:</strong> {cdsName}
-                        </p>
-                        <p>
-                          <strong>Capital:</strong> $
-                          {selectedAccount.capital.toFixed(2)}
-                        </p>
-                      </div>
-                    ) : null;
-                  })()}
-                </div>
-              )}
-
-              {/* Transaction Date */}
-              <div>
-                <label
-                  className={`block text-sm font-medium mb-1 ${
-                    isDark ? "text-gray-300" : "text-gray-700"
-                  }`}
-                >
-                  Transaction Date *
-                </label>
-                <input
-                  type="date"
-                  value={
-                    stockTransactionForm.date
-                      ? new Date(stockTransactionForm.date)
-                          .toISOString()
-                          .split("T")[0]
-                      : ""
-                  }
-                  onChange={(e) =>
-                    setStockTransactionForm({
-                      ...stockTransactionForm,
-                      date: new Date(e.target.value),
-                    })
-                  }
-                  className={`w-full p-2 border rounded transition-colors duration-200 ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white focus:border-blue-500"
-                      : "bg-white border-gray-300 text-gray-900 focus:border-blue-500"
-                  }`}
-                />
-              </div>
-
-              {/* Transaction Type */}
-              <div>
-                <label
-                  className={`block text-sm font-medium mb-1 ${
-                    isDark ? "text-gray-300" : "text-gray-700"
-                  }`}
-                >
-                  Transaction Type *
-                </label>
-                <select
-                  value={
-                    stockTransactionForm.type !== undefined
-                      ? stockTransactionForm.type.toString()
-                      : ""
-                  }
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setStockTransactionForm({
-                      ...stockTransactionForm,
-                      type:
-                        value !== ""
-                          ? (parseInt(value) as StockTransactionType)
-                          : undefined,
-                    });
-                                   }}
-                  className={`w-full p-2 border rounded transition-colors duration-200 ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white focus:border-blue-500"
-                      : "bg-white border-gray-300 text-gray-900 focus:border-blue-500"
-                  }`}
-                >
-                  <option value="">Select Type</option>
-                  <option value={StockTransactionType.INCREASE.toString()}>
-                    INCREASE
-                  </option>
-                  <option value={StockTransactionType.DECREASE.toString()}>
-                    DECREASE
-                  </option>
-                </select>
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${
-                  isDark ? "text-gray-300" : "text-gray-700"
-                }`}>
-                  Description *
-                </label>
-                <textarea
-                  placeholder="Enter transaction description"
-                  value={stockTransactionForm.description || ""}
-                  onChange={(e) =>
-                    setStockTransactionForm({
-                      ...stockTransactionForm,
-                      description: e.target.value,
-                    })
-                  }
-                  rows={3}
-                  className={`w-full p-2 border rounded transition-colors duration-200 resize-none ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
-                      : "bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500"
-                  }`}
-                />
-              </div>
-
-              {/* Amount */}
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${
-                  isDark ? "text-gray-300" : "text-gray-700"
-                }`}>
-                  Amount *
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={stockTransactionForm.amount || ""}
-                  onChange={(e) =>
-                    setStockTransactionForm({
-                      ...stockTransactionForm,
-                      amount: Number(e.target.value),
-                    })
-                  }
-                  className={`w-full p-2 border rounded transition-colors duration-200 ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
-                      : "bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500"
-                  }`}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 mt-6">
-              <button
-                onClick={
-                  editingStockTransaction
-                    ? handleUpdateStockTransaction
-                    : handleCreateStockTransaction
-                }
-                disabled={loading}
-                className={`px-4 py-2 rounded transition-colors duration-200 disabled:opacity-50 ${
-                  isDark
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : "bg-blue-500 text-white hover:bg-blue-600"
-                }`}
-              >
-                {loading
-                  ? "Processing..."
-                  : editingStockTransaction
-                  ? "Update"
-                  : "Create"}
-              </button>
-              <button
-                onClick={() => {
-                  setShowStockTransactionForm(false);
-                  setStockTransactionForm({});
-                  setEditingStockTransaction(null);
                 }}
                 className={`px-4 py-2 rounded transition-colors duration-200 ${
                   isDark
