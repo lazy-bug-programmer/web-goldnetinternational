@@ -35,9 +35,15 @@ import {
   listStockTransactions,
   filterStockTransactions,
 } from "@/lib/actions/stock-transaction.action";
-import { listFirebaseUsers, FirebaseUser } from "@/lib/actions/user.action";
+import {
+  listFirebaseUsers,
+  FirebaseUser,
+  createFirebaseUser,
+  updateFirebaseUser,
+  deleteFirebaseUser,
+} from "@/lib/actions/user.action";
 
-type Tab = "cds" | "stock-accounts" | "stock-transactions";
+type Tab = "users" | "cds" | "stock-accounts" | "stock-transactions";
 
 // Theme Context
 interface ThemeContextType {
@@ -114,9 +120,18 @@ const ThemeToggle: React.FC = () => {
 function AdminPageContent() {
   const { user, loading: authLoading, isAdmin } = useAuth();
   const { isDark } = useTheme();
-  const [activeTab, setActiveTab] = useState<Tab>("cds");
+  const [activeTab, setActiveTab] = useState<Tab>("users");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // User Management State
+  const [usersList, setUsersList] = useState<FirebaseUser[]>([]);
+  const [userForm, setUserForm] = useState<{
+    email: string;
+    password: string;
+  }>({ email: "", password: "" });
+  const [editingUser, setEditingUser] = useState<string | null>(null);
+  const [showUserForm, setShowUserForm] = useState(false);
 
   // CDS State
   const [cdsList, setCdsList] = useState<CDS[]>([]);
@@ -290,6 +305,14 @@ function AdminPageContent() {
     setError(null);
     try {
       switch (activeTab) {
+        case "users":
+          const usersResult = await listFirebaseUsers(100);
+          if (usersResult.error) {
+            setError(usersResult.error);
+          } else {
+            setUsersList(usersResult.users);
+          }
+          break;
         case "cds":
           const cdsResult = await listCDS(50);
           if (cdsResult.error) {
@@ -324,6 +347,74 @@ function AdminPageContent() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // User Management Functions
+  const handleCreateUser = async () => {
+    if (!userForm.email || !userForm.password) {
+      setError("Please fill in all required fields");
+      return;
+    }
+
+    if (userForm.password.length < 6) {
+      setError("Password must be at least 6 characters long");
+      return;
+    }
+
+    setLoading(true);
+    const result = await createFirebaseUser(userForm.email, userForm.password);
+    if (result.success) {
+      setShowUserForm(false);
+      setUserForm({ email: "", password: "" });
+      loadData();
+    } else {
+      setError(result.error || "Failed to create user");
+    }
+    setLoading(false);
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editingUser) return;
+
+    if (!userForm.email) {
+      setError("Email is required");
+      return;
+    }
+
+    if (userForm.password && userForm.password.length < 6) {
+      setError("Password must be at least 6 characters long");
+      return;
+    }
+
+    setLoading(true);
+    const updates: any = { email: userForm.email };
+    if (userForm.password) {
+      updates.password = userForm.password;
+    }
+
+    const result = await updateFirebaseUser(editingUser, updates);
+    if (result.success) {
+      setEditingUser(null);
+      setShowUserForm(false);
+      setUserForm({ email: "", password: "" });
+      loadData();
+    } else {
+      setError(result.error || "Failed to update user");
+    }
+    setLoading(false);
+  };
+
+  const handleDeleteUser = async (uid: string) => {
+    if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) return;
+
+    setLoading(true);
+    const result = await deleteFirebaseUser(uid);
+    if (result.success) {
+      loadData();
+    } else {
+      setError(result.error || "Failed to delete user");
+    }
+    setLoading(false);
   };
 
   // CDS Functions
@@ -413,7 +504,7 @@ function AdminPageContent() {
       remister_code: generateRandomCode(4),
       cds_no: generateCdsNo(),
       capital: Number(stockAccountForm.capital) || 0,
-      profit: Number(stockAccountForm.profit) || 0,
+      profit: 0, // Default value of 0
       estimated_total: Number(stockAccountForm.estimated_total) || 0,
       last_transaction_date: new Date(),
     } as StockAccount;
@@ -628,6 +719,157 @@ function AdminPageContent() {
     }
     setLoading(false);
   };
+
+  const renderUsersTable = () => (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3
+          className={`text-lg font-semibold ${
+            isDark ? "text-white" : "text-gray-900"
+          }`}
+        >
+          User Management
+        </h3>
+        <button
+          onClick={() => {
+            setUserForm({ email: "", password: "" });
+            setEditingUser(null);
+            setShowUserForm(true);
+          }}
+          className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors duration-200 ${
+            isDark
+              ? "bg-blue-600 text-white hover:bg-blue-700"
+              : "bg-blue-500 text-white hover:bg-blue-600"
+          }`}
+        >
+          <Plus size={16} />
+          Add User
+        </button>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table
+          className={`min-w-full border rounded-lg ${
+            isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+          }`}
+        >
+          <thead className={isDark ? "bg-gray-700" : "bg-gray-50"}>
+            <tr>
+              {["Email", "Display Name", "Email Verified", "Status", "Created", "Actions"].map((header) => (
+                <th
+                  key={header}
+                  className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                    isDark ? "text-gray-300" : "text-gray-500"
+                  }`}
+                >
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody
+            className={`divide-y ${
+              isDark
+                ? "bg-gray-800 divide-gray-700"
+                : "bg-white divide-gray-200"
+            }`}
+          >
+            {usersList.map((firebaseUser) => (
+              <tr
+                key={firebaseUser.uid}
+                className={`transition-colors duration-150 ${
+                  isDark ? "hover:bg-gray-700" : "hover:bg-gray-50"
+                }`}
+              >
+                <td
+                  className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
+                    isDark ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  {firebaseUser.email || "No email"}
+                </td>
+                <td
+                  className={`px-6 py-4 whitespace-nowrap text-sm ${
+                    isDark ? "text-gray-300" : "text-gray-500"
+                  }`}
+                >
+                  {firebaseUser.displayName || "Not set"}
+                </td>
+                <td
+                  className={`px-6 py-4 whitespace-nowrap text-sm ${
+                    isDark ? "text-gray-300" : "text-gray-500"
+                  }`}
+                >
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs ${
+                      firebaseUser.emailVerified
+                        ? "bg-green-100 text-green-800"
+                        : "bg-yellow-100 text-yellow-800"
+                    }`}
+                  >
+                    {firebaseUser.emailVerified ? "Verified" : "Unverified"}
+                  </span>
+                </td>
+                <td
+                  className={`px-6 py-4 whitespace-nowrap text-sm ${
+                    isDark ? "text-gray-300" : "text-gray-500"
+                  }`}
+                >
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs ${
+                      firebaseUser.disabled
+                        ? "bg-red-100 text-red-800"
+                        : "bg-green-100 text-green-800"
+                    }`}
+                  >
+                    {firebaseUser.disabled ? "Disabled" : "Active"}
+                  </span>
+                </td>
+                <td
+                  className={`px-6 py-4 whitespace-nowrap text-sm ${
+                    isDark ? "text-gray-300" : "text-gray-500"
+                  }`}
+                >
+                  {firebaseUser.creationTime
+                    ? new Date(firebaseUser.creationTime).toLocaleDateString()
+                    : "Unknown"}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                  <button
+                    onClick={() => {
+                      setUserForm({
+                        email: firebaseUser.email || "",
+                        password: "",
+                      });
+                      setEditingUser(firebaseUser.uid);
+                      setShowUserForm(true);
+                    }}
+                    className={`transition-colors duration-150 ${
+                      isDark
+                        ? "text-blue-400 hover:text-blue-300"
+                        : "text-indigo-600 hover:text-indigo-900"
+                    }`}
+                  >
+                    <Edit size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteUser(firebaseUser.uid)}
+                    className={`transition-colors duration-150 ${
+                      isDark
+                        ? "text-red-400 hover:text-red-300"
+                        : "text-red-600 hover:text-red-900"
+                    }`}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
   const renderCdsTable = () => (
     <div className="space-y-4">
@@ -1130,6 +1372,105 @@ function AdminPageContent() {
 
   const renderForms = () => (
     <>
+      {/* User Form Modal */}
+      {showUserForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div
+            className={`p-6 rounded-lg w-96 max-h-[90vh] overflow-y-auto ${
+              isDark ? "bg-gray-800 text-white" : "bg-white text-gray-900"
+            }`}
+          >
+            <h3 className="text-lg font-semibold mb-4">
+              {editingUser ? "Edit User" : "Add User"}
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDark ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  placeholder="user@example.com"
+                  value={userForm.email}
+                  onChange={(e) =>
+                    setUserForm({ ...userForm, email: e.target.value })
+                  }
+                  className={`w-full p-2 border rounded transition-colors duration-200 ${
+                    isDark
+                      ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                      : "bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500"
+                  }`}
+                />
+              </div>
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDark ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Password {editingUser ? "(leave empty to keep current)" : "*"}
+                </label>
+                <input
+                  type="password"
+                  placeholder={editingUser ? "Leave empty to keep current" : "Minimum 6 characters"}
+                  value={userForm.password}
+                  onChange={(e) =>
+                    setUserForm({ ...userForm, password: e.target.value })
+                  }
+                  className={`w-full p-2 border rounded transition-colors duration-200 ${
+                    isDark
+                      ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                      : "bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500"
+                  }`}
+                />
+              </div>
+              {!editingUser && (
+                <div
+                  className={`text-xs p-2 rounded ${
+                    isDark
+                      ? "bg-gray-700 text-gray-300"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  <p>Password must be at least 6 characters long.</p>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={editingUser ? handleUpdateUser : handleCreateUser}
+                disabled={loading}
+                className={`px-4 py-2 rounded transition-colors duration-200 disabled:opacity-50 ${
+                  isDark
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : "bg-blue-500 text-white hover:bg-blue-600"
+                }`}
+              >
+                {loading ? "Processing..." : editingUser ? "Update" : "Create"}
+              </button>
+              <button
+                onClick={() => {
+                  setShowUserForm(false);
+                  setUserForm({ email: "", password: "" });
+                  setEditingUser(null);
+                }}
+                className={`px-4 py-2 rounded transition-colors duration-200 ${
+                  isDark
+                    ? "bg-gray-600 text-white hover:bg-gray-700"
+                    : "bg-gray-500 text-white hover:bg-gray-600"
+                }`}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CDS Form Modal */}
       {showCdsForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1455,33 +1796,6 @@ function AdminPageContent() {
                     isDark ? "text-gray-300" : "text-gray-700"
                   }`}
                 >
-                  Current Profit
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={stockAccountForm.profit || ""}
-                  onChange={(e) =>
-                    setStockAccountForm({
-                      ...stockAccountForm,
-                      profit: Number(e.target.value),
-                    })
-                  }
-                  className={`w-full p-2 border rounded transition-colors duration-200 ${
-                    isDark
-                      ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
-                      : "bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500"
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label
-                  className={`block text-sm font-medium mb-1 ${
-                    isDark ? "text-gray-300" : "text-gray-700"
-                  }`}
-                >
                   Estimated Total
                 </label>
                 <input
@@ -1663,12 +1977,6 @@ function AdminPageContent() {
                 <p className="text-lg text-green-600">${selectedStockAccount.capital.toFixed(2)}</p>
               </div>
               <div>
-                <p className="text-sm font-medium">Profit</p>
-                <p className={`text-lg ${selectedStockAccount.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  ${selectedStockAccount.profit.toFixed(2)}
-                </p>
-              </div>
-              <div>
                 <p className="text-sm font-medium">User Email</p>
                 <p className="text-lg">
                   {availableUsers.find(user => user.uid === selectedStockAccount.user_id)?.email || "Unknown"}
@@ -1844,7 +2152,7 @@ function AdminPageContent() {
                       ...accountTransactionForm,
                       date: new Date(e.target.value),
                     })
-                  }
+                                   }
                   className={`w-full p-2 border rounded transition-colors duration-200 ${
                     isDark
                       ? "bg-gray-700 border-gray-600 text-white focus:border-blue-500"
@@ -2362,6 +2670,20 @@ function AdminPageContent() {
         {/* Tab Navigation */}
         <div className="flex space-x-1 mb-6">
           <button
+            onClick={() => setActiveTab("users")}
+            className={`px-4 py-2 rounded-lg transition-colors duration-200 ${
+              activeTab === "users"
+                ? isDark
+                  ? "bg-blue-600 text-white"
+                  : "bg-blue-500 text-white"
+                : isDark
+                ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+            }`}
+          >
+            User Management
+          </button>
+          <button
             onClick={() => setActiveTab("cds")}
             className={`px-4 py-2 rounded-lg transition-colors duration-200 ${
               activeTab === "cds"
@@ -2421,6 +2743,7 @@ function AdminPageContent() {
             </div>
           )}
 
+          {!loading && activeTab === "users" && renderUsersTable()}
           {!loading && activeTab === "cds" && renderCdsTable()}
           {!loading &&
             activeTab === "stock-accounts" &&

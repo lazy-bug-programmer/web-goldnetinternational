@@ -18,6 +18,12 @@ interface UserListResponse {
   error?: string;
 }
 
+interface UserResponse {
+  success: boolean;
+  error?: string;
+  uid?: string;
+}
+
 /**
  * Lists all Firebase Auth users
  */
@@ -109,6 +115,74 @@ export async function searchFirebaseUsersByEmail(
     console.error("Error searching Firebase users:", error);
     return {
       users: [],
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    };
+  }
+}
+
+/**
+ * Creates a new Firebase Auth user
+ */
+export async function createFirebaseUser(
+  email: string,
+  password: string
+): Promise<UserResponse> {
+  try {
+    const userRecord = await admin.auth().createUser({
+      email,
+      password,
+      emailVerified: false,
+    });
+
+    return {
+      success: true,
+      uid: userRecord.uid,
+    };
+  } catch (error) {
+    console.error("Error creating Firebase user:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    };
+  }
+}
+
+/**
+ * Updates an existing Firebase Auth user
+ */
+export async function updateFirebaseUser(
+  uid: string,
+  updates: {
+    email?: string;
+    password?: string;
+    disabled?: boolean;
+  }
+): Promise<UserResponse> {
+  try {
+    await admin.auth().updateUser(uid, updates);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating Firebase user:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    };
+  }
+}
+
+/**
+ * Deletes a Firebase Auth user
+ */
+export async function deleteFirebaseUser(uid: string): Promise<UserResponse> {
+  try {
+    await admin.auth().deleteUser(uid);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting Firebase user:", error);
+    return {
+      success: false,
       error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }

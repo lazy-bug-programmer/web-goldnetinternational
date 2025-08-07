@@ -25,6 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Image from "next/image";
 
 interface SharedLayoutProps {
   children: React.ReactNode;
@@ -152,10 +153,11 @@ export default function SharedLayout({ children }: SharedLayoutProps) {
             {/* Logo */}
             <Link href="/" className="flex items-center space-x-3">
               <div className="flex items-center space-x-1">
-                <div className="w-2 h-8 bg-green-500 rounded-sm"></div>
+                <Image src={"/gni.png"} alt="Logo" width={32} height={32} />
+                {/* <div className="w-2 h-8 bg-green-500 rounded-sm"></div>
                 <div className="w-2 h-6 bg-green-400 rounded-sm"></div>
                 <div className="w-2 h-10 bg-green-600 rounded-sm"></div>
-                <div className="w-2 h-4 bg-green-300 rounded-sm"></div>
+                <div className="w-2 h-4 bg-green-300 rounded-sm"></div> */}
               </div>
               <span className="text-lg lg:text-xl font-bold text-gray-800 dark:text-white tracking-wider">
                 GOLDNETINTERNATIONAL
