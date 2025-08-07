@@ -97,7 +97,7 @@ export default function DashboardPage() {
     // Check if target time has already passed
     if (currentTime >= targetTime) {
       setAnimatedEstimatedTotal(stockAccount.estimated_total);
-      setAnimatedProfit(stockAccount.profit);
+      setAnimatedProfit(stockAccount.estimated_total); // Profit equals estimated_total after time passes
       setIsAnimating(false);
       return;
     }
@@ -112,7 +112,7 @@ export default function DashboardPage() {
       // Check if we've reached the target time
       if (now >= targetTime) {
         setAnimatedEstimatedTotal(stockAccount.estimated_total);
-        setAnimatedProfit(stockAccount.profit);
+        setAnimatedProfit(stockAccount.estimated_total); // Profit equals estimated_total after time passes
         setIsAnimating(false);
         clearInterval(interval);
         return;
@@ -132,9 +132,9 @@ export default function DashboardPage() {
       const fluctuationAmount = -10000 + Math.random() * 20000; // Between -10000 and +10000
       const estimatedTotalFluctuation = stockAccount.estimated_total + fluctuationAmount;
       
-      // Correlate profit changes with estimated total changes
-      // Apply the same fluctuation amount to profit
-      const profitFluctuation = stockAccount.profit + fluctuationAmount;
+      // Apply 80% of the fluctuation amount to profit
+      const profitFluctuationAmount = fluctuationAmount * 0.8;
+      const profitFluctuation = stockAccount.profit + profitFluctuationAmount;
 
       setAnimatedEstimatedTotal(estimatedTotalFluctuation);
       setAnimatedProfit(profitFluctuation);
