@@ -35,6 +35,7 @@ import {
   getUserProfileByUserId,
   updateUserProfile,
   createUserProfile,
+  listUserProfiles,
 } from "@/lib/actions/user-profile.action";
 import {
   createStockAccount,
@@ -141,6 +142,8 @@ function AdminPageContent() {
 
   // User Management State
   const [usersList, setUsersList] = useState<FirebaseUser[]>([]);
+  const [userProfilesList, setUserProfilesList] = useState<UserProfile[]>([]);
+  const [loadingUserProfiles, setLoadingUserProfiles] = useState(false);
   const [userForm, setUserForm] = useState<{
     email: string;
     password: string;
@@ -355,12 +358,21 @@ function AdminPageContent() {
     try {
       switch (activeTab) {
         case "users":
+          // Load both Firebase users and user profiles
           const usersResult = await listFirebaseUsers(100);
           if (usersResult.error) {
             setError(usersResult.error);
           } else {
             setUsersList(usersResult.users);
           }
+
+          // Load user profiles
+          setLoadingUserProfiles(true);
+          const profilesResult = await listUserProfiles(100);
+          if (!profilesResult.error) {
+            setUserProfilesList(profilesResult.userProfiles);
+          }
+          setLoadingUserProfiles(false);
           break;
         case "cds":
           const cdsResult = await listCDS(50);
@@ -874,6 +886,15 @@ function AdminPageContent() {
         setEditingUserProfile(null);
         // Show success message
         setError(null);
+        // Reload user profiles to refresh the table
+        if (activeTab === "users") {
+          setLoadingUserProfiles(true);
+          const profilesResult = await listUserProfiles(100);
+          if (!profilesResult.error) {
+            setUserProfilesList(profilesResult.userProfiles);
+          }
+          setLoadingUserProfiles(false);
+        }
       } else {
         setError(result.error || "Failed to save user profile");
       }
@@ -886,8 +907,16 @@ function AdminPageContent() {
   };
 
   const renderUsersTable = () => {
+    // Create a map of user profiles by user_id for quick lookup
+    const userProfilesMap = new Map<string, UserProfile>();
+    userProfilesList.forEach((profile) => {
+      userProfilesMap.set(profile.user_id, profile);
+    });
+
     // Filter users based on search terms
     const filteredUsers = usersList.filter((firebaseUser) => {
+      const userProfile = userProfilesMap.get(firebaseUser.uid);
+
       const emailMatch =
         !searchTerm ||
         (firebaseUser.email || "")
@@ -896,7 +925,7 @@ function AdminPageContent() {
 
       const phoneMatch =
         !phoneSearchTerm ||
-        (firebaseUser.phoneNumber || "")
+        (userProfile?.phone || "")
           .toLowerCase()
           .includes(phoneSearchTerm.toLowerCase());
 
@@ -998,6 +1027,15 @@ function AdminPageContent() {
           </div>
         )}
 
+        {/* Loading indicator for user profiles */}
+        {loadingUserProfiles && (
+          <div
+            className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+          >
+            Loading user profiles...
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table
             className={`min-w-full border rounded-lg ${
@@ -1049,117 +1087,127 @@ function AdminPageContent() {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((firebaseUser) => (
-                  <tr
-                    key={firebaseUser.uid}
-                    className={`transition-colors duration-150 ${
-                      isDark ? "hover:bg-gray-700" : "hover:bg-gray-50"
-                    }`}
-                  >
-                    <td
-                      className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
-                        isDark ? "text-white" : "text-gray-900"
+                filteredUsers.map((firebaseUser) => {
+                  const userProfile = userProfilesMap.get(firebaseUser.uid);
+
+                  return (
+                    <tr
+                      key={firebaseUser.uid}
+                      className={`transition-colors duration-150 ${
+                        isDark ? "hover:bg-gray-700" : "hover:bg-gray-50"
                       }`}
                     >
-                      {firebaseUser.email || "No email"}
-                    </td>
-                    <td
-                      className={`px-6 py-4 whitespace-nowrap text-sm ${
-                        isDark ? "text-gray-300" : "text-gray-500"
-                      }`}
-                    >
-                      {firebaseUser.phoneNumber || "No phone"}
-                    </td>
-                    <td
-                      className={`px-6 py-4 whitespace-nowrap text-sm ${
-                        isDark ? "text-gray-300" : "text-gray-500"
-                      }`}
-                    >
-                      {firebaseUser.displayName || "Not set"}
-                    </td>
-                    <td
-                      className={`px-6 py-4 whitespace-nowrap text-sm ${
-                        isDark ? "text-gray-300" : "text-gray-500"
-                      }`}
-                    >
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs ${
-                          firebaseUser.emailVerified
-                            ? "bg-green-100 text-green-800"
-                            : "bg-yellow-100 text-yellow-800"
+                      <td
+                        className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
+                          isDark ? "text-white" : "text-gray-900"
                         }`}
                       >
-                        {firebaseUser.emailVerified ? "Verified" : "Unverified"}
-                      </span>
-                    </td>
-                    <td
-                      className={`px-6 py-4 whitespace-nowrap text-sm ${
-                        isDark ? "text-gray-300" : "text-gray-500"
-                      }`}
-                    >
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs ${
-                          firebaseUser.disabled
-                            ? "bg-red-100 text-red-800"
-                            : "bg-green-100 text-green-800"
+                        {firebaseUser.email || "No email"}
+                      </td>
+                      <td
+                        className={`px-6 py-4 whitespace-nowrap text-sm ${
+                          isDark ? "text-gray-300" : "text-gray-500"
                         }`}
                       >
-                        {firebaseUser.disabled ? "Disabled" : "Active"}
-                      </span>
-                    </td>
-                    <td
-                      className={`px-6 py-4 whitespace-nowrap text-sm ${
-                        isDark ? "text-gray-300" : "text-gray-500"
-                      }`}
-                    >
-                      {firebaseUser.creationTime
-                        ? new Date(
-                            firebaseUser.creationTime
-                          ).toLocaleDateString()
-                        : "Unknown"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                      <button
-                        onClick={() => handleViewUserProfile(firebaseUser.uid)}
-                        className={`transition-colors duration-150 ${
-                          isDark
-                            ? "text-purple-400 hover:text-purple-300"
-                            : "text-purple-600 hover:text-purple-900"
-                        }`}
-                        title="Manage User Profile"
-                      >
-                        <User size={16} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setUserForm({
-                            email: firebaseUser.email || "",
-                            password: "",
-                          });
-                          setEditingUser(firebaseUser.uid);
-                          setShowUserForm(true);
-                        }}
-                        className={`transition-colors duration-150 ${
-                          isDark
-                            ? "text-blue-400 hover:text-blue-300"
-                            : "text-indigo-600 hover:text-indigo-900"
+                        {userProfile?.phone || "No phone"}
+                      </td>
+                      <td
+                        className={`px-6 py-4 whitespace-nowrap text-sm ${
+                          isDark ? "text-gray-300" : "text-gray-500"
                         }`}
                       >
-                        <Edit size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(firebaseUser.uid)}
-                        className={`transition-colors duration-150 ${
-                          isDark
-                            ? "text-red-400 hover:text-red-300"
-                            : "text-red-600 hover:text-red-900"
+                        {userProfile?.name ||
+                          firebaseUser.displayName ||
+                          "Not set"}
+                      </td>
+                      <td
+                        className={`px-6 py-4 whitespace-nowrap text-sm ${
+                          isDark ? "text-gray-300" : "text-gray-500"
                         }`}
                       >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs ${
+                            firebaseUser.emailVerified
+                              ? "bg-green-100 text-green-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
+                          {firebaseUser.emailVerified
+                            ? "Verified"
+                            : "Unverified"}
+                        </span>
+                      </td>
+                      <td
+                        className={`px-6 py-4 whitespace-nowrap text-sm ${
+                          isDark ? "text-gray-300" : "text-gray-500"
+                        }`}
+                      >
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs ${
+                            firebaseUser.disabled
+                              ? "bg-red-100 text-red-800"
+                              : "bg-green-100 text-green-800"
+                          }`}
+                        >
+                          {firebaseUser.disabled ? "Disabled" : "Active"}
+                        </span>
+                      </td>
+                      <td
+                        className={`px-6 py-4 whitespace-nowrap text-sm ${
+                          isDark ? "text-gray-300" : "text-gray-500"
+                        }`}
+                      >
+                        {firebaseUser.creationTime
+                          ? new Date(
+                              firebaseUser.creationTime
+                            ).toLocaleDateString()
+                          : "Unknown"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                        <button
+                          onClick={() =>
+                            handleViewUserProfile(firebaseUser.uid)
+                          }
+                          className={`transition-colors duration-150 ${
+                            isDark
+                              ? "text-purple-400 hover:text-purple-300"
+                              : "text-purple-600 hover:text-purple-900"
+                          }`}
+                          title="Manage User Profile"
+                        >
+                          <User size={16} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setUserForm({
+                              email: firebaseUser.email || "",
+                              password: "",
+                            });
+                            setEditingUser(firebaseUser.uid);
+                            setShowUserForm(true);
+                          }}
+                          className={`transition-colors duration-150 ${
+                            isDark
+                              ? "text-blue-400 hover:text-blue-300"
+                              : "text-indigo-600 hover:text-indigo-900"
+                          }`}
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(firebaseUser.uid)}
+                          className={`transition-colors duration-150 ${
+                            isDark
+                              ? "text-red-400 hover:text-red-300"
+                              : "text-red-600 hover:text-red-900"
+                          }`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
