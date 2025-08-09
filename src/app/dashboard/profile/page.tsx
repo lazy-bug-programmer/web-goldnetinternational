@@ -1,19 +1,19 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Pencil, Save, X, User } from 'lucide-react';
-import { UserProfile } from '@/lib/domains/user-profile.domain';
-import { 
-  getUserProfileByUserId, 
-  updateUserProfile, 
-  createUserProfile 
-} from '@/lib/actions/user-profile.action';
-import { useAuth } from '@/lib/auth-context';
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Pencil, Save, X, User } from "lucide-react";
+import { UserProfile } from "@/lib/domains/user-profile.domain";
+import {
+  getUserProfileByUserId,
+  updateUserProfile,
+  createUserProfile,
+} from "@/lib/actions/user-profile.action";
+import { useAuth } from "@/lib/auth-context";
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -23,14 +23,15 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  
+
   // Form state
   const [formData, setFormData] = useState({
-    name: '',
-    ic: '',
-    bank_account: '',
-    bank_name: '',
-    email: '',
+    name: "",
+    ic: "",
+    bank_account: "",
+    bank_name: "",
+    email: "",
+    phone: "",
   });
 
   // Load user profile on component mount
@@ -42,13 +43,14 @@ export default function ProfilePage() {
 
   const loadUserProfile = async () => {
     if (!user?.uid) return;
-    
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
-      const { userProfile: profile, error: fetchError } = await getUserProfileByUserId(user.uid);
-      
+      const { userProfile: profile, error: fetchError } =
+        await getUserProfileByUserId(user.uid);
+
       if (fetchError) {
         setError(fetchError);
       } else if (profile) {
@@ -59,30 +61,31 @@ export default function ProfilePage() {
           bank_account: profile.bank_account,
           bank_name: profile.bank_name,
           email: profile.email,
+          phone: profile.phone,
         });
       }
     } catch (err) {
-      setError('Failed to load profile');
-      console.error('Error loading profile:', err);
+      setError("Failed to load profile");
+      console.error("Error loading profile:", err);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
   const handleSave = async () => {
     if (!user?.uid) return;
-    
+
     setIsSaving(true);
     setError(null);
     setSuccess(null);
-    
+
     try {
       const profileData: UserProfile = {
         user_id: user.uid,
@@ -91,10 +94,11 @@ export default function ProfilePage() {
         bank_account: formData.bank_account,
         bank_name: formData.bank_name,
         email: formData.email,
+        phone: formData.phone,
       };
 
       let result;
-      
+
       if (userProfile?.id) {
         // Update existing profile
         result = await updateUserProfile(userProfile.id, profileData);
@@ -104,16 +108,16 @@ export default function ProfilePage() {
       }
 
       if (result.success) {
-        setSuccess('Profile saved successfully!');
+        setSuccess("Profile saved successfully!");
         setIsEditing(false);
         // Reload the profile to get updated data
         await loadUserProfile();
       } else {
-        setError(result.error || 'Failed to save profile');
+        setError(result.error || "Failed to save profile");
       }
     } catch (err) {
-      setError('Failed to save profile');
-      console.error('Error saving profile:', err);
+      setError("Failed to save profile");
+      console.error("Error saving profile:", err);
     } finally {
       setIsSaving(false);
     }
@@ -127,6 +131,7 @@ export default function ProfilePage() {
         bank_account: userProfile.bank_account,
         bank_name: userProfile.bank_name,
         email: userProfile.email,
+        phone: userProfile.phone,
       });
     }
     setIsEditing(false);
@@ -155,10 +160,12 @@ export default function ProfilePage() {
             <User className="h-8 w-8 text-primary" />
             <div>
               <h1 className="text-3xl font-bold">Profile</h1>
-              <p className="text-muted-foreground">Manage your personal information</p>
+              <p className="text-muted-foreground">
+                Manage your personal information
+              </p>
             </div>
           </div>
-          
+
           {!isEditing && (
             <Button onClick={() => setIsEditing(true)} variant="outline">
               <Pencil className="h-4 w-4 mr-2" />
@@ -191,12 +198,12 @@ export default function ProfilePage() {
                   <Input
                     id="name"
                     value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    onChange={(e) => handleInputChange("name", e.target.value)}
                     placeholder="Enter your full name"
                   />
                 ) : (
                   <div className="p-3 bg-muted rounded-md">
-                    {userProfile?.name || 'Not provided'}
+                    {userProfile?.name || "Not provided"}
                   </div>
                 )}
               </div>
@@ -208,12 +215,29 @@ export default function ProfilePage() {
                     id="email"
                     type="email"
                     value={formData.email}
-                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    onChange={(e) => handleInputChange("email", e.target.value)}
                     placeholder="Enter your email address"
                   />
                 ) : (
                   <div className="p-3 bg-muted rounded-md">
-                    {userProfile?.email || 'Not provided'}
+                    {userProfile?.email || "Not provided"}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                {isEditing ? (
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange("phone", e.target.value)}
+                    placeholder="Enter your phone number"
+                  />
+                ) : (
+                  <div className="p-3 bg-muted rounded-md">
+                    {userProfile?.phone || "Not provided"}
                   </div>
                 )}
               </div>
@@ -224,12 +248,12 @@ export default function ProfilePage() {
                   <Input
                     id="ic"
                     value={formData.ic}
-                    onChange={(e) => handleInputChange('ic', e.target.value)}
+                    onChange={(e) => handleInputChange("ic", e.target.value)}
                     placeholder="Enter your IC number"
                   />
                 ) : (
                   <div className="p-3 bg-muted rounded-md">
-                    {userProfile?.ic || 'Not provided'}
+                    {userProfile?.ic || "Not provided"}
                   </div>
                 )}
               </div>
@@ -240,12 +264,14 @@ export default function ProfilePage() {
                   <Input
                     id="bank_name"
                     value={formData.bank_name}
-                    onChange={(e) => handleInputChange('bank_name', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("bank_name", e.target.value)
+                    }
                     placeholder="Enter your bank name"
                   />
                 ) : (
                   <div className="p-3 bg-muted rounded-md">
-                    {userProfile?.bank_name || 'Not provided'}
+                    {userProfile?.bank_name || "Not provided"}
                   </div>
                 )}
               </div>
@@ -257,20 +283,22 @@ export default function ProfilePage() {
                 <Input
                   id="bank_account"
                   value={formData.bank_account}
-                  onChange={(e) => handleInputChange('bank_account', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("bank_account", e.target.value)
+                  }
                   placeholder="Enter your bank account number"
                 />
               ) : (
                 <div className="p-3 bg-muted rounded-md">
-                  {userProfile?.bank_account || 'Not provided'}
+                  {userProfile?.bank_account || "Not provided"}
                 </div>
               )}
             </div>
 
             {isEditing && (
               <div className="flex gap-3 pt-4">
-                <Button 
-                  onClick={handleSave} 
+                <Button
+                  onClick={handleSave}
                   disabled={isSaving}
                   className="flex-1"
                 >
@@ -286,8 +314,8 @@ export default function ProfilePage() {
                     </>
                   )}
                 </Button>
-                <Button 
-                  onClick={handleCancel} 
+                <Button
+                  onClick={handleCancel}
                   variant="outline"
                   disabled={isSaving}
                 >
@@ -301,12 +329,15 @@ export default function ProfilePage() {
 
         {userProfile?.created_at && (
           <div className="mt-6 text-center text-sm text-muted-foreground">
-            Profile created on {new Date(userProfile.created_at).toLocaleDateString()}
-            {userProfile.updated_at && userProfile.updated_at !== userProfile.created_at && (
-              <span className="block">
-                Last updated on {new Date(userProfile.updated_at).toLocaleDateString()}
-              </span>
-            )}
+            Profile created on{" "}
+            {new Date(userProfile.created_at).toLocaleDateString()}
+            {userProfile.updated_at &&
+              userProfile.updated_at !== userProfile.created_at && (
+                <span className="block">
+                  Last updated on{" "}
+                  {new Date(userProfile.updated_at).toLocaleDateString()}
+                </span>
+              )}
           </div>
         )}
       </div>
